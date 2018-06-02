@@ -37,9 +37,9 @@ public:
 	void importBlock(BlockHeader const& _header, RLP _transactions, RLP _uncles, RLP _receipts, u256 const& _totalDifficulty) override
 	{
 		RLPStream headerRlp;
-		_header.streamRLP(headerRlp);
+        _header.streamRLP(headerRlp);
 
-		RLPStream block(3);
+        RLPStream block(3);
 		block.appendRaw(headerRlp.out());
 		block << _transactions << _uncles;
 

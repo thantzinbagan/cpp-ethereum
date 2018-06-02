@@ -169,6 +169,18 @@ public:
     bytes const& extraData() const { return m_extraData; }
     LogBloom const& logBloom() const { return m_logBloom; }
     u256 const& difficulty() const { return m_difficulty; }
+    bytes getNonce() const
+    {
+        if (seal().size())
+            return seal().at(0);
+        return bytes();
+    }
+    bytes getMixHash() const
+    {
+        if (seal().size())
+            return seal().at(1);
+        return bytes();
+    }
     template <class T> T seal(unsigned _offset = 0) const { T ret; Guard l(m_sealLock); if (_offset < m_seal.size()) ret = RLP(m_seal[_offset]).convert<T>(RLP::VeryStrict); return ret; }
 
 private:

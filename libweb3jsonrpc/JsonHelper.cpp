@@ -147,6 +147,9 @@ Json::Value toJson(dev::eth::BlockHeader const& _bi, BlockDetails const& _bd, Un
         res["transactions"] = Json::Value(Json::arrayValue);
         for (unsigned i = 0; i < _ts.size(); i++)
             res["transactions"].append(toJson(_ts[i], std::make_pair(_bi.hash(), i), (BlockNumber)_bi.number()));
+
+        res["nonce"] = toString(_bi.getNonce());
+        res["mixHash"] = toString(_bi.getMixHash());
     }
     return res;
 }
