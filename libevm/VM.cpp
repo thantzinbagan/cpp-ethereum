@@ -91,9 +91,35 @@ VM::VM()
         aleth_get_buildinfo()->project_version,
         ::destroy,
         ::execute,
+        setTracer,
         nullptr,
     }
 {}
+
+void VM::setTracer(
+    evmc_instance* _instance, evmc_trace_callback _callback, evmc_tracer_context* _context) noexcept
+{
+    auto vm = static_cast<dev::eth::VM*>(_instance);
+    vm->m_trace = _callback;
+    vm->m_traceContext = _context;
+}
+
+void VM::trace() noexcept
+{
+    if (m_trace)
+    {
+        InstructionMetric const& metric = c_metrics[static_cast<size_t>(m_OP)];
+        evmc_uint256be topStackItem;
+        evmc_uint256be const* pushedStackItem = nullptr;
+        if (metric.ret == 1)
+        {
+            topStackItem = toEvmC(m_SPP[0]);
+            pushedStackItem = &topStackItem;
+        }
+        m_trace(m_traceContext, m_message->depth, m_step++, m_PC, EVMC_SUCCESS, m_io_gas,
+            m_stackEnd - m_SPP, pushedStackItem, m_mem.size(), 0, 0, nullptr);
+    }
+}
 
 uint64_t VM::memNeed(u256 _offset, u256 _size)
 {
@@ -387,6 +413,7 @@ void VM::interpretCases()
             updateIOGas();
 
             m_SPP[0] = (u256)*(h256 const*)(m_mem.data() + (unsigned)m_SP[0]);
+            trace();
         }
         NEXT
 
@@ -397,6 +424,7 @@ void VM::interpretCases()
             updateIOGas();
 
             *(h256*)&m_mem[(unsigned)m_SP[0]] = (h256)m_SP[1];
+            trace();
         }
         NEXT
 
@@ -1530,11 +1558,14 @@ void VM::interpretCases()
             // get val at two-byte offset into const pool and advance pc by one-byte remainder
             TRACE_OP(2, m_PC, m_OP);
             unsigned off;
-            ++m_PC;
-            off = m_code[m_PC++] << 8;
-            off |= m_code[m_PC++];
-            m_PC += m_code[m_PC];
+            uint64_t pc = m_PC;
+            ++pc;
+            off = m_code[pc++] << 8;
+            off |= m_code[pc++];
+            pc += m_code[pc];
             m_SPP[0] = m_pool[off];
+            trace();
+            m_PC = pc;
             TRACE_VAL(2, "Retrieved pooled const", m_SPP[0]);
 #else
             throwBadInstruction();
@@ -1546,9 +1577,9 @@ void VM::interpretCases()
         {
             ON_OP();
             updateIOGas();
-            ++m_PC;
-            m_SPP[0] = m_code[m_PC];
-            ++m_PC;
+            m_SPP[0] = m_code[m_PC + 1];
+            trace();
+            m_PC += 2;
         }
         CONTINUE
 
@@ -1594,6 +1625,8 @@ void VM::interpretCases()
             // bytes to handle "out of code" push data here.
             for (++m_PC; numBytes--; ++m_PC)
                 m_SPP[0] = (m_SPP[0] << 8) | m_code[m_PC];
+
+            trace();
         }
         CONTINUE
 
@@ -1722,6 +1755,7 @@ void VM::interpretCases()
 
             updateSSGas();
             updateIOGas();
+            trace();
 
             evmc_uint256be key = toEvmC(m_SP[0]);
             evmc_uint256be value = toEvmC(m_SP[1]);
